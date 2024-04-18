@@ -1,0 +1,25 @@
+{
+  "name": "ccgit",
+  "version": "1.0.0",
+  "description": "Git Client",
+  "main": "index.js",
+  "author": "Narayanan Chandrasekar",
+  "license": "MIT",
+  
+  "dependencies": {
+    "file-system": "^2.2.2",
+    "sha1": "^1.1.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.0-dev.20240412"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.7"
+  },
+  "scripts": {
+    "build": "node_modules/.bin/tsc",
+    "ccgitinit": "node dist/init.js",
+    "ccgitstatus": "node dist/ccgitstatus.js",
+    "ccgitadd": "node dist/UpdateIndexAdd.js",
+    "ccgitcommit": "node dist/Commit.js"
+  }
+}
