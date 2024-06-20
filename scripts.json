@@ -3,6 +3,8 @@
     "ccgitinit": "node ../dist/init.js",
     "ccgitstatus": "node ../dist/ccgitstatus.js",
     "ccgitadd": "node ../dist/ccgitadd.js",
-    "ccgitcommit": "node ../dist/ccgitcommit.js"
+    "ccgitcommit": "node ../dist/ccgitcommit.js",
+    "ccgitdiff": "node ../dist/ccgitdiff.js",
+    "ccgitpush": "node ../dist/ccgitpush.js"
   }
 }

@@ -1,26 +1,28 @@
 import * as zlib from 'zlib'
 import * as fs from 'fs'
 import { Utils } from './Utils'
-import {UpdateIndex} from './UpdateIndexAdd'
 import * as crypto from 'crypto'
-import { time, timeEnd } from 'console'
+
 
 export class Commit
 {
     private _stagingArea: string
     public utils: Utils
-    private _individualOldEntries: Buffer[]
+    public _individualOldEntries: Buffer[]
     private _header: string
     //public path: string
     private _stat: fs.Stats
     private treeSha:string
     private _treeShaSpace: Buffer
-   
+    public packDirectory: string
+    public packFile: string
     constructor(utils: Utils)
     {
         this._stagingArea = '.git/index'//to move it to .local.env file
         this.utils = utils
         this._individualOldEntries = []
+        this.packDirectory = ".git/objects/pack"
+        this.packFile = ""
        // this._extractOldEntries()
        // this.path = path
        // this.setStat()
@@ -79,19 +81,20 @@ export class Commit
              let j = i + 60//start of fileName length
              
              indexFileContents.copy(fileNameLength,0,j,j+2)
-             console.log(fileNameLength,"FilenameLength Buffer")
+            // console.log(fileNameLength,"FilenameLength Buffer")
              firstEntryLength = <number>this.utils.readIntegersFromBuffer(fileNameLength,16,0,'BE')
-             console.log(firstEntryLength,"First entry fileName length")
-             let spaceForNull = 0
-             while((firstEntryLength + 2 + spaceForNull)%4 != 0)
-             {
-                 spaceForNull++
-             }
-             spaceForNull = spaceForNull?spaceForNull:4
+            // console.log(firstEntryLength,"First entry fileName length")
+            let spaceForNull = 8 - (j + 2 + firstEntryLength - i)%8
+            //  let spaceForNull = 0
+            //  while((firstEntryLength + 2 + spaceForNull)%4 != 0)
+            //  {
+            //      spaceForNull++
+            //  }
+            //  spaceForNull = spaceForNull?spaceForNull:4
              firstEntry = this.utils.allocateBufferSpace(j+2+firstEntryLength+spaceForNull-i)
              indexFileContents.copy(firstEntry,0,i,j+2+firstEntryLength+spaceForNull)
              this._individualOldEntries.push(firstEntry)
-            console.log(firstEntry.toString(),"First Entry content")
+            //console.log(firstEntry.toString(),"First Entry content")
             //second entry
             let secondEntry: Buffer
             let k = j+2+firstEntryLength+spaceForNull
@@ -100,29 +103,31 @@ export class Commit
             while(indexFileContents.length > l)
             {
             indexFileContents.copy(fileNameLength,0,l,l+2)
-            console.log(fileNameLength,"FilenameLength Buffer")
+            //console.log(fileNameLength,"FilenameLength Buffer")
              let secondEntryLength = <number>this.utils.readIntegersFromBuffer(fileNameLength,16,0,'BE')
-             console.log(secondEntryLength,"Second entry fileName length")
-             spaceForNull = 0
-             while((secondEntryLength + 2 + spaceForNull)%4 != 0)
-             {
-                 spaceForNull++
-             }
-             spaceForNull = spaceForNull?spaceForNull:4
+             //console.log(secondEntryLength,"Second entry fileName length")
+             spaceForNull = 8 - (l + 2 + secondEntryLength - k)%8
+            //  spaceForNull = 0
+            //  while((secondEntryLength + 2 + spaceForNull)%4 != 0)
+            //  {
+            //      spaceForNull++
+            //  }
+            //  spaceForNull = spaceForNull?spaceForNull:4
              secondEntry = this.utils.allocateBufferSpace(l+2+secondEntryLength+spaceForNull-k)
              indexFileContents.copy(secondEntry,0,k,l+2+secondEntryLength+spaceForNull)
-            console.log(secondEntry.toString(),"second Entry content")
+            //console.log(secondEntry.toString(),"second Entry content")
             this._individualOldEntries.push(secondEntry)
             
             k = l + 2 + secondEntryLength + spaceForNull
             l = k + 60
             
         }
+        fs.writeFileSync("oldEntries",this._individualOldEntries.join())
             this._individualOldEntries.forEach(entry=>{
-                console.log(entry.length,"Entry length")
-                console.log(entry.toString(),"Entry content")
+                // console.log(entry.length,"Entry length")
+                // console.log(entry.toString(),"Entry content")
             })
-            console.log(oldEntries.toString(),"old Entries") 
+            //console.log(oldEntries.toString(),"old Entries") 
             
     }
     private _getModeOf(entry: Buffer): string
@@ -186,30 +191,35 @@ public createStore(treeObject: string): string
 }
 private _writeTreeObjectToDB(): string
 {
-   
-    let treeObject = ""
-    let treeEntryLength = 0
-    let treeEntry: Buffer
-    
     let offset = 0 
     let treeBodyLength = 0
     const space = " "
     const nullCharacter = "\u0000"
-    this._individualOldEntries.forEach(entry=>{
+    
+    const sortedIndividualEntries = this._individualOldEntries.slice().sort((a,b)=> {
+       const firstFileName = this._getFilenameOf(a).toUpperCase()
+       const secondFileName = this._getFilenameOf(b).toUpperCase()
+       if(firstFileName > secondFileName)
+        {
+            return 1
+        }
+        if(firstFileName < secondFileName)
+        {
+            return -1
+        }    
+
+        return 0
+    })
+    sortedIndividualEntries.forEach(entry=>{
         const mode = "100644"
        
        const fileName = this._getFilenameOf(entry)
        const sha1 = this._getSha1Of(entry)
-       
        treeBodyLength += mode.length+space.length+fileName.length+nullCharacter.length+sha1.length
-       
-    })
+       })
     const treeBody = Buffer.alloc(treeBodyLength)
-    
-    //const treeEntries = Buffer.alloc(treeBodyLength)
-    // Buffer.alloc(spaceFOrTreeEntry)
-    this._individualOldEntries.forEach(entry=>{
-      //console.log(entry,"entry")
+
+    sortedIndividualEntries.forEach(entry=>{
         const mode = "100644"//this._getModeOf(entry)//to do : get mode dynmically
        treeBody.write(mode,offset)
        treeBody.write(space,offset+mode.length)
@@ -227,8 +237,6 @@ private _writeTreeObjectToDB(): string
        offset += mode.length+space.length+fileName.length+nullCharacter.length+sha1Copy.length
        
     })
-    //const treeObjectSignature = 'tree'+ treeObjectEntriesLength+ "\u0000"
-    /////////////////
     const treeSignature = 'tree'
     
     const treeHeader = treeSignature+ space+ treeBodyLength
@@ -248,6 +256,7 @@ private _writeTreeObjectToDB(): string
     const filePath = dirPath + "/" + shaStore.substring(2)
     fs.writeFileSync('.git/inflatedTree',tree)
     fs.writeFileSync(filePath,zlib.deflateSync(tree))
+    //process.exit()
     return shaStore
 }
 
@@ -271,44 +280,60 @@ private _writeCommitObjectToDB(): void
     const lineFeedCharacter = Buffer.alloc(1).fill("0A",0,1,'hex')
     const parentCommitSignature = "parent "
     const parentCommit = parentCommitSha?parentCommitSignature+parentCommitSha:""
-    const author = "author Narayanan <narayanan.cs.31@gmail.com>"
-    const timeNow = new Date().getTime().toString()
-    const committer = "committer Narayanan <narayanan.cs.31@gmail.com>"
+    const parentCommitLength = parentCommit.length? (parentCommit.length+lineFeedCharacter.length):0
+    const author = "author Xxxxxxxx <Xxxxxxxx@gmail.com>"
+    const timeNow = Date.now().toString().substring(0,10) +" +0530"//new Date().getTime().toString()
+    const committer = "committer Xxxxxxxx <Xxxxxx@gmail.com>"
     //const timeNowAgain = new Date().getTime()
     const commitMessage = process.argv[2]
-    const commitBodyLength = lineFeedCharacter.length+treeSignature.length+space.length+treeSha.length+lineFeedCharacter.length+parentCommit.length+lineFeedCharacter.length+author.length+space.length+timeNow.toString().length+lineFeedCharacter.length+committer.length+space.length+timeNow.toString().length+doubleLineFeedCharacter.length+process.argv[2].length+lineFeedCharacter.length
+    const commitBodyLength = nullCharacterLength+
+                             treeSignature.length+
+                             space.length+treeSha.length+
+                             lineFeedCharacter.length+
+                             parentCommitLength+
+                             author.length+
+                             space.length+
+                             timeNow.toString().length+
+                             lineFeedCharacter.length+
+                             committer.length+
+                             space.length+
+                             timeNow.toString().length+
+                             doubleLineFeedCharacter.length+
+                             process.argv[2].length+
+                             lineFeedCharacter.length
     console.log(commitBodyLength,"length of the commit body")
     const commitHeader = commitSignature+ space+ commitBodyLength
     const commit = Buffer.alloc(commitHeader.length+commitBodyLength)
-    commit.write(commitHeader)
+    const bodyLengthToBeWritten = commitBodyLength-1
+    commit.write(commitSignature+ " "+bodyLengthToBeWritten)
     //lineFeedCharacter.copy(commit,commitHeader.length,0,lineFeedCharacter.length)
     commit.write("\u0000",commitHeader.length)
     commit.write(treeSignature+space+treeSha,commitHeader.length+nullCharacterLength)
     lineFeedCharacter.copy(commit,commitHeader.length+nullCharacterLength+treeSignature.length+
                            space.length+treeSha.length,0,lineFeedCharacter.length)
-    commit.write(parentCommit,commitHeader.length+nullCharacterLength+treeSignature.length+
-        space.length+treeSha.length+lineFeedCharacter.length)
-        lineFeedCharacter.copy(commit,commitHeader.length+nullCharacterLength+treeSignature.length+
-            space.length+treeSha.length+lineFeedCharacter.length+parentCommit.length,0,lineFeedCharacter.length)
+    parentCommit.length?commit.write(parentCommit,commitHeader.length+nullCharacterLength+treeSignature.length+
+        space.length+treeSha.length+lineFeedCharacter.length):""
+    parentCommit.length?lineFeedCharacter.copy(commit,commitHeader.length+nullCharacterLength+treeSignature.length+
+            space.length+treeSha.length+lineFeedCharacter.length+parentCommit.length,0,lineFeedCharacter.length):""
     commit.write(author+space+timeNow,commitHeader.length+nullCharacterLength+treeSignature.length+
-        space.length+treeSha.length+lineFeedCharacter.length+parentCommit.length+lineFeedCharacter.length)
+        space.length+treeSha.length+lineFeedCharacter.length+parentCommitLength)
         lineFeedCharacter.copy(commit,commitHeader.length+nullCharacterLength+treeSignature.length+
-            space.length+treeSha.length+lineFeedCharacter.length+parentCommit.length+lineFeedCharacter.length+author.length+
+            space.length+treeSha.length+lineFeedCharacter.length+parentCommitLength+author.length+
             space.length+timeNow.length)
-            lineFeedCharacter.copy(commit,commitHeader.length+nullCharacterLength+treeSignature.length+
-                space.length+treeSha.length+lineFeedCharacter.length+parentCommit.length+lineFeedCharacter.length+author.length+
+        lineFeedCharacter.copy(commit,commitHeader.length+nullCharacterLength+treeSignature.length+
+                space.length+treeSha.length+lineFeedCharacter.length+parentCommitLength+author.length+
                 space.length+timeNow.length,0,lineFeedCharacter.length)
     commit.write(committer+space+timeNow,commitHeader.length+nullCharacterLength+treeSignature.length+
-        space.length+treeSha.length+lineFeedCharacter.length+parentCommit.length+lineFeedCharacter.length+author.length+
+        space.length+treeSha.length+lineFeedCharacter.length+parentCommitLength+author.length+
         space.length+timeNow.length+lineFeedCharacter.length)
     doubleLineFeedCharacter.copy(commit,commitHeader.length+nullCharacterLength+treeSignature.length+
-        space.length+treeSha.length+lineFeedCharacter.length+parentCommit.length+lineFeedCharacter.length+author.length+
+        space.length+treeSha.length+lineFeedCharacter.length+parentCommitLength+author.length+
         space.length+timeNow.length+lineFeedCharacter.length+committer.length+space.length+timeNow.length,0,doubleLineFeedCharacter.length)
     commit.write(commitMessage,commitHeader.length+nullCharacterLength+treeSignature.length+
-        space.length+treeSha.length+lineFeedCharacter.length+parentCommit.length+lineFeedCharacter.length+author.length+
+        space.length+treeSha.length+lineFeedCharacter.length+parentCommitLength+author.length+
         space.length+timeNow.length+lineFeedCharacter.length+committer.length+space.length+timeNow.length+doubleLineFeedCharacter.length)                    
     lineFeedCharacter.copy(commit,commitHeader.length+nullCharacterLength+treeSignature.length+
-        space.length+treeSha.length+lineFeedCharacter.length+parentCommit.length+lineFeedCharacter.length+author.length+
+        space.length+treeSha.length+lineFeedCharacter.length+parentCommitLength+author.length+
         space.length+timeNow.length+lineFeedCharacter.length+committer.length+space.length+timeNow.length+doubleLineFeedCharacter.length
         +commitMessage.length,0,lineFeedCharacter.length)
 
@@ -326,16 +351,29 @@ private _writeCommitObjectToDB(): void
 }
 private _writeToMaster(sha: string): void
 {
+    
     const masterFilePath = ".git/refs/heads/master"
     fs.writeFileSync(masterFilePath,sha)
     const lineFeedCharacter = Buffer.alloc(1)
         lineFeedCharacter.fill("0A",0,1,'hex')
         fs.appendFileSync(masterFilePath,lineFeedCharacter)
-
+//strangely the above code does not work for git prune if HEAD contains refs/heads/master. Instead git prune is needs latest commit sha to be there .
+// const headFilePath = ".git/HEAD"
+//     fs.writeFileSync(headFilePath,sha)
+//     const lineFeedCharacter = Buffer.alloc(1)
+//         lineFeedCharacter.fill("0A",0,1,'hex')
+//         fs.appendFileSync(headFilePath,lineFeedCharacter)
 }
 private _isParentCommitPresent(): boolean
 {
-    return fs.readFileSync('.git/refs/heads/master') !== null
+    let data
+    if(fs.existsSync('.git/refs/heads/master'))
+        {
+            data = fs.readFileSync('.git/refs/heads/master')
+        } else {
+            data = fs. readFileSync('.git/info/refs')
+        }
+    return data !== null
 }
 
 private _getParentCommit(): string
@@ -344,11 +382,19 @@ private _getParentCommit(): string
     {
         return null
     }
-    return fs.readFileSync('.git/refs/heads/master',{encoding:'ascii'})
+    let data
+    // console.log(fs.readFileSync('.git/refs/heads/master',{encoding:'ascii'}).toString().substring(0,40),
+    // fs.readFileSync('.git/refs/heads/master',{encoding:'ascii'}).toString().substring(0,40).length)
+    if(fs.existsSync('.git/refs/heads/master'))
+         data = fs.readFileSync('.git/refs/heads/master',{encoding:'ascii'}).toString().substring(0,40)
+    else {
+        data = fs.readFileSync('.git/info/refs',{encoding:'ascii'}).toString().substring(0,40)
+    }
+    return data
 }
 
 public updateIndex()
-{console.log("here")
+{
     this._extractOldEntries()
     if(this._isAlreadyCommitted())
     {
@@ -365,9 +411,12 @@ public updateIndex()
     let stagingAreaCopy
     if(stagingArea.includes("TREE"))
     {
-        stagingAreaCopy= Buffer.alloc(stagingArea.indexOf("TREE")+ 33 + 20)//33 is for tree extension data and 20 is for sha of staging area
+        //stagingAreaCopy= Buffer.alloc(stagingArea.indexOf("TREE")+ 33 + 20)//33 is for tree extension data and 20 is for sha of staging area
+        stagingAreaCopy= Buffer.alloc(stagingArea.length - 1)//-1 because the tree extension is invalidated by -1 in number fo entries every time we stage a file(s) after commit(s). -1 occupies 2 bytes , not 1.
+        console.log(stagingAreaCopy.length,stagingArea.length,"Comparing 2 lengths")
     } else{
-        stagingAreaCopy = Buffer.alloc(stagingArea.length + 33)//20 for sha is included in stagingArea
+        //stagingAreaCopy = Buffer.alloc(stagingArea.length + 33)//20 for sha is included in stagingArea
+        stagingAreaCopy = Buffer.alloc(stagingArea.length + 33-20)
     }
      
     stagingArea.copy(stagingAreaCopy,0,0,stagingArea.length)
@@ -392,7 +441,8 @@ public updateIndex()
     {
         overwritingPosition = stagingAreaCopy.indexOf("TREE")
     } else{
-        overwritingPosition = stagingAreaCopy.length -20 - 33
+        overwritingPosition = stagingAreaCopy.length -20 -13 // -20
+        
     }
     console.log(overwritingPosition,"Position")
         console.log(stagingAreaCopy,"Before writing content")
@@ -408,17 +458,25 @@ public updateIndex()
        // console.log(stagingAreaContent.length+overwritingPosition,"position to write tee sha")
        this._treeShaSpace.copy(stagingAreaCopy, overwritingPosition+treeSignature.length+treeExtensionLength.length+nullPath.length+1+spaceCharacter.length+1+lineFeedCharacter.length,0,this._treeShaSpace.length)
         console.log(stagingAreaCopy,"After writing tree sha")
-    
+        
+   fs.writeFileSync(this._stagingArea,stagingAreaCopy)
+
+   fs.writeFileSync(".git/debugIndexWithoutIntegrity",stagingAreaCopy)
+   
     const sha = this._calculateShaOfStagingArea()
    // this.utils.appendDataToFile(this._stagingArea, shaOfStagingArea)
-   const shaOfStagingArea = Buffer.alloc(20).fill(sha,0,20,'hex')
-   //console.log(shaOfStagingArea,"Sha of staging Area")
+   const shaOfStagingArea = Buffer.alloc(20)
+   shaOfStagingArea.fill(sha,0,20,'hex')
+   console.log(shaOfStagingArea,"Sha of staging Area")
    //shaOfStagingArea.copy(stagingAreaCopy,stagingAreaCopy.length-20,0,20)
-   shaOfStagingArea.copy(stagingAreaCopy,overwritingPosition+treeSignature.length+treeExtensionLength.length+nullPath.length+1+spaceCharacter.length+1+lineFeedCharacter.length+this._treeShaSpace.length,0,20)
-   console.log(stagingAreaCopy.length,"Staging Area copy length")
-   fs.writeFileSync(".git/debugIndex",stagingAreaCopy)
+   let anotherCopyOfStagingArea = Buffer.alloc(stagingAreaCopy.length+20)
+   stagingAreaCopy.copy(anotherCopyOfStagingArea,0,0,stagingAreaCopy.length)
+   console.log(overwritingPosition+treeSignature.length+treeExtensionLength.length+nullPath.length+1+spaceCharacter.length+1+lineFeedCharacter.length+this._treeShaSpace.length,"anothercopyofstagingArea length before integrity sha")
+   shaOfStagingArea.copy(anotherCopyOfStagingArea,overwritingPosition+treeSignature.length+treeExtensionLength.length+nullPath.length+1+spaceCharacter.length+1+lineFeedCharacter.length+this._treeShaSpace.length,0,20)
+   //console.log(stagingAreaCopy.length,"Staging Area copy length")
+   fs.writeFileSync(".git/debugIndex",anotherCopyOfStagingArea)
    //fs.unlinkSync(this._stagingArea)
-   fs.writeFileSync(this._stagingArea,stagingAreaCopy)
+   fs.writeFileSync(this._stagingArea,anotherCopyOfStagingArea)
     this._writeCommitObjectToDB() 
 }
 private _calculateShaOfStagingArea(): string
@@ -440,7 +498,6 @@ public _isAlreadyCommitted(): boolean
     {
         return false
     }
-    const treeSha = Buffer.alloc(20)
     let numberOfEntries  = Buffer.alloc(2)
      stagingArea.copy(numberOfEntries,0,stagingArea.indexOf("TREE")+9,stagingArea.indexOf("TREE")+11)
      console.log(numberOfEntries.toString(), typeof numberOfEntries,"Number of entries")
@@ -449,6 +506,28 @@ public _isAlreadyCommitted(): boolean
         return false
     }
 
+     if(this.isDBPacked())
+         {
+            return true
+    //         const data  = this.getPackFileData()
+    //         this._individualOldEntries.forEach(entry=>{
+    //             if(!data.includes(this._getSha1Of(entry)))
+    //             {
+    //                 console.log("Inside false")
+                    
+    //                 isAlreadyCommited = false
+    //                 //return
+    //             }
+    //             //console.log("Inside true")
+                
+    //                 //isAlreadyCommited = true
+                
+                
+    //         })
+    //         return isAlreadyCommited
+         }
+    let isAlreadyCommited = true     
+    let treeSha = Buffer.alloc(20)
     stagingArea.copy(treeSha,0,stagingArea.length - 40, stagingArea.length - 20)
     console.log(treeSha,"treeSha inside isAlreadyCommitted")
     const treeDir = treeSha.toString('hex').substring(0,2)
@@ -457,7 +536,7 @@ public _isAlreadyCommitted(): boolean
     const inflatedTreeContents = zlib.inflateSync(deflatedTreeContents)
     console.log(inflatedTreeContents,"tree extension contents")
     fs.writeFileSync(".git/AlreadyCommitted",inflatedTreeContents)
-    let isAlreadyCommited = true
+    
     this._individualOldEntries.forEach(entry=>{
         if(!inflatedTreeContents.includes(this._getSha1Of(entry)))
         {
@@ -476,6 +555,24 @@ public _isAlreadyCommitted(): boolean
 return isAlreadyCommited
 }
 
+public isDBPacked(): boolean
+{
+    this.packFile = fs.readdirSync(this.packDirectory).
+        filter((content=>
+            content.substring(content.length-4) === 'pack'
+        )).join(",")
+        console.log(this.packFile,"packFile")
+
+     return this.packFile.length > 0   
+}
+
+// public getPackFileData(): Buffer
+// {
+//     const payload = fs.readFileSync(this.packDirectory+"/"+this.packFile)
+//     console.log(payload,"payload")
+//     console.log(payload.length,"payload length")
+//     return payload
+// }
 }
     
 //let shaString = '1947671935eaf146411b93b8637c70a84ee97d79'

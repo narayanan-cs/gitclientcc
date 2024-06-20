@@ -10,6 +10,7 @@ export class Init
     public descriptionFile: string
     public hooksDir: string
     public infoDir: string
+    public infoRefsFile: string
     public objectsDir: string
     public refsDir: string
     public headsDir: string
@@ -32,10 +33,12 @@ export class Init
         this.configFile = this.gitDir + "/" + "config"
         this.descriptionFile = this.gitDir + "/" + "description"
         this.hooksDir = this.gitDir + "/" + "hooks"
+        this.infoDir = this.gitDir + "/" + "/info"
+        this.infoRefsFile = this.infoDir + "/refs"
         this.objectsDir = this.gitDir + "/" + "objects"
         this.refsDir = this.gitDir + "/" + "refs"
         this.headsDir = this.refsDir + "/" + "heads"
-        this.masterFile = this.headsDir + "/" + "master"
+       // this.masterFile = this.headsDir + "/" + "master"
         this.tagsDir = this.refsDir + "/" + "tags"
         this.pkg_json = this.repositoryName + "/" + "package.json"
     }
@@ -96,6 +99,12 @@ export class Init
         fs.mkdirSync(this.hooksDir)
     }
 
+    public createInfoDir(): void
+    {
+        fs.mkdirSync(this.infoDir)
+        fs.writeFileSync(this.infoRefsFile,"")
+    }
+
     public createObjectsDir(): void
     {
         fs.mkdirSync(this.objectsDir)
@@ -106,7 +115,7 @@ export class Init
         fs.mkdirSync(this.refsDir)
         fs.mkdirSync(this.headsDir)
         fs.mkdirSync(this.tagsDir)
-        fs.writeFileSync(this.masterFile,"")
+        //fs.writeFileSync(this.masterFile,"")
     }
 
     public createPackageDotJsonFile(): void
@@ -120,6 +129,7 @@ export class Init
         this.createConfigFile()
         this.createDescriptionFile()
         this.createHooksDir()
+        this.createInfoDir()
         this.createObjectsDir()
         this.createRefsDir()
         this.createPackageDotJsonFile()

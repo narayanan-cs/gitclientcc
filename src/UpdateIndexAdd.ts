@@ -33,7 +33,7 @@ export class UpdateIndex
         this.newFileNames = []
         this.utils = utils
         this.modifiedExtensions = Buffer.alloc(0)    
-        const inputNumberOfEntries = this.calculateNumberOfIndexEntriesToWriteInIndex(indexEntries)
+        const inputNumberOfEntries = this.getNumberOfIndexEntriesToWriteInIndex(indexEntries)
         this._initializeIndexEntries(inputNumberOfEntries)
         this.calculateNumberOfIndexEntriesToWriteInIndexSignature(indexEntries)
         this.allocateSpaceForProps()
@@ -41,7 +41,7 @@ export class UpdateIndex
         //this.setStats(this.newFileNames)
         if(fs.existsSync(this._fileName))
         {
-            this._extractOldEntries()
+          //  this._extractOldEntries()
             this._extractExtensions()
             this._invalidateExtensions()
             
@@ -54,17 +54,12 @@ export class UpdateIndex
         }
     }
 
-    private _allocateSpaceForFileNameProps(indexEntries: {[key:string]: bigint|number|string}[]): void
-    {
-        
-    }
     private _readIndex(): Buffer
     {
       return  fs.readFileSync(this._fileName)
     }
     private _extractOldEntries(): void
     {
-        
         let firstEntryLength
         let fileNameLength = this.utils.allocateBufferSpace(2)
         let firstEntry:Buffer
@@ -85,13 +80,9 @@ export class UpdateIndex
              indexFileContents.copy(fileNameLength,0,j,j+2)
              console.log(fileNameLength,"FilenameLength Buffer")
              firstEntryLength = <number>this.utils.readIntegersFromBuffer(fileNameLength,16,0,'BE')
+             
              console.log(firstEntryLength,"First entry fileName length")
-             let spaceForNull = 0
-             while((firstEntryLength + 2 + spaceForNull)%4 != 0)
-             {
-                 spaceForNull++
-             }
-             spaceForNull = spaceForNull?spaceForNull:4
+             let spaceForNull = 8 - (j + 2 + firstEntryLength - i)%8
              firstEntry = this.utils.allocateBufferSpace(j+2+firstEntryLength+spaceForNull-i)
              indexFileContents.copy(firstEntry,0,i,j+2+firstEntryLength+spaceForNull)
              this.individualOldEntries.push(firstEntry)
@@ -107,12 +98,7 @@ export class UpdateIndex
             console.log(fileNameLength,"FilenameLength Buffer")
              let secondEntryLength = <number>this.utils.readIntegersFromBuffer(fileNameLength,16,0,'BE')
              console.log(secondEntryLength,"Second entry fileName length")
-             spaceForNull = 0
-             while((secondEntryLength + 2 + spaceForNull)%4 != 0)
-             {
-                 spaceForNull++
-             }
-             spaceForNull = spaceForNull?spaceForNull:4
+             spaceForNull = 8 - (l + 2 + secondEntryLength - k)%8
              secondEntry = this.utils.allocateBufferSpace(l+2+secondEntryLength+spaceForNull-k)
              indexFileContents.copy(secondEntry,0,k,l+2+secondEntryLength+spaceForNull)
             console.log(secondEntry.toString(),"second Entry content")
@@ -126,6 +112,7 @@ export class UpdateIndex
                 console.log(entry.length,"Entry length")
                 console.log(entry.toString(),"Entry content")
             })
+            
             console.log(this.oldEntries.toString(),"old Entries") 
             
     }
@@ -150,8 +137,6 @@ export class UpdateIndex
 
     private _invalidateExtensions():void
     {
-
-        
         this.modifiedExtensions = Buffer.alloc(14)//14 is for tree extension data
         const invalidatedEntry = Buffer.alloc(2)//Buffer.alloc(2).fill(-1,0,2,'ascii')
         invalidatedEntry.write("-1")
@@ -171,12 +156,6 @@ export class UpdateIndex
         
         lineFeedCharacter.copy(this.modifiedExtensions,treeSignature.length+treeExtensionLength.length+nullPath.length+invalidatedEntry.length+spaceCharacter.length+1,0,1)
         console.log(this.modifiedExtensions,"After writing content")
-        // const sha = this._calculateShaOfStagingArea()
-        //  this.utils.appendDataToFile(this._stagingArea, shaOfStagingArea)
-        // const shaOfStagingArea = Buffer.alloc(20).fill(sha,0,20,'hex')
-        // //console.log(shaOfStagingArea,"Sha of staging Area")
-        // shaOfStagingArea.copy(stagingAreaCopy,stagingAreaCopy.length-20,0,20)
-        // console.log(stagingAreaCopy.length,"Staging Area copy length")
          fs.writeFileSync(".git/debugExtensions",this.modifiedExtensions)
        
         
@@ -238,7 +217,7 @@ export class UpdateIndex
         this.extensions = this.utils.allocateBufferSpace(0)
         console.log(this.indexEntries,"After space allocation")
          
-        //this.indexEntry.fileName = indexEntry.fileName
+        
     }
     
     public fillOrWriteProps(indexEntries: {[key:string]: bigint|number|string}[]): void
@@ -250,20 +229,10 @@ export class UpdateIndex
         let i=0
         //here we should take care that duplicate entries are allowed to override previous entries in index and original entries are preserved and new entries are appended
         indexEntries.forEach(indexEntry=>{
-           // console.log(this.newFileNames.indexOf(<string>indexEntry.fileName),"Same filenames")
-            //if(this.newFileNames.length?this.newFileNames.indexOf(<string>indexEntry.fileName) !== -1:true)//to do: refactor this as part of calculateIndexEntries Method
-            //{console.log("Inside")
-           // this.indexEntries[i].fileName = <string>indexEntry.fileName
+           
            this.indexEntries[i].fileName = <string>indexEntry.fileName
             this.setStats(this.indexEntries[i].fileName)
-            //const fileContentLength = this.getFileContentLength(this.indexEntries[i].fileName)
-            //console.log(fileContentLength,"Length")
             this.indexEntries[i].fileContentLength = this.utils.writeIntegersToBuffer(this.indexEntries[i].fileContentLength,<number> indexEntry.fileContentLength,32)//thisthis.getFileContentLength(this.indexEntries[i].fileName)
-          
-            //  this.indexEntries[i].signature = this.utils.fillBuffer(this.indexEntries[i].signature, <string>indexEntry.signature)//To do : determine if the file is a  file or tree or commit
-            //  this.indexEntries[i].version = this.utils.fillBuffer(this.indexEntries[i].version,<number>indexEntry.version,3)
-            // indexEntry.numberOfEntries = this.utils.fillBuffer(this.indexEntries[i].numberOfEntries,<number>indexEntry.numberOfEntries,3)
-           
            this.indexEntries[i].birthTime = this.utils.writeIntegersToBuffer(this.indexEntries[i].birthTime, Math.floor( new Date(this.stats.birthtime).getTime()/1000),32,0, 'BE')
            this.indexEntries[i].mtime = this.utils.writeIntegersToBuffer(this.indexEntries[i].mtime, Math.floor( new Date(this.stats.mtime).getTime()/1000),32,0, 'BE')
            this.indexEntries[i].birthtimeInNanoSeconds = this.utils.fillBuffer(this.indexEntries[i].birthtimeInNanoSeconds,0)//to do: understand nanoseconds concept and fill inthe values in buffer
@@ -277,71 +246,76 @@ export class UpdateIndex
            this.indexEntries[i].sha = this.utils.fillBuffer(this.indexEntries[i].sha,<string>indexEntry.sha,0,BufferSpace.sha,'hex')
            this.indexEntries[i].spaceForNull = <number>indexEntry.spaceForNull 
             i++
-        //}
+        
         
         })
-
+        this.indexEntries.sort((a,b)=>{
+            const firstFileName = a.fileName
+            const secondFileName = b.fileName
+            if(firstFileName > secondFileName)
+             {
+                 return 1
+             }
+             if(firstFileName < secondFileName)
+             {
+                 return -1
+             }    
+     
+             return 0
+         })
         console.log(this.indexEntries,"After filling props")
     }
     
+    private _getFilenameOf(entry: Buffer): string
+    {
+        const fileNameLength = this.utils.readIntegersFromBuffer(entry, 16, 60, 'BE')
+        console.log(fileNameLength,"fileName length")
+        const fileName = Buffer.alloc(<number>fileNameLength)
+        entry.copy(fileName, 0, 62, 62 + <number>fileNameLength)
+        console.log(fileName.toString().length,"in _getFilenameFrom")
+        return fileName.toString()
+    }
+
     private _prepareIndexEntries(): void
     {
         if(!this.indexEntries.length || !this.individualOldEntries.length)
         {
             return 
         }
-        let duplicateFilenameIndex = -1
+        
         this.indexEntries.forEach(entry=>{
             
              this.individualOldEntries.forEach(oldEntry=>{
-                 console.log(oldEntry.toString(),"Old Entry")
                  console.log(entry.fileName,"Entry filename")
-                duplicateFilenameIndex = oldEntry.toString().indexOf(entry.fileName)  
-                console.log(duplicateFilenameIndex,"Duplicate File name Index")
-                if(duplicateFilenameIndex >= 0)
-                {console.log(this.individualOldEntries.indexOf(oldEntry),"Index of old Entry")
+                 const oldFilename = this._getFilenameOf(oldEntry)
+                 if(oldFilename === entry.fileName)   
+                {
                 this.individualOldEntries.forEach(entry=>{
                     console.log(entry.length,"Entry length before splicing")
-                    console.log(entry.toString(),"Entry content before splicing")
+                   // console.log(entry.toString(),"Entry content before splicing")
                 })
                     this.individualOldEntries.splice(this.individualOldEntries.indexOf(oldEntry),1)
                     this.individualOldEntries.forEach(entry=>{
                         console.log(entry.length,"Entry length after splicing")
-                        console.log(entry.toString(),"Entry content after splicing")
+                      //  console.log(entry.toString(),"Entry content after splicing")
                     })
                     //return
                 }
             })
-            console.log(this.individualOldEntries.length,"Old entries length in prepare index method")
-            this.individualOldEntries.forEach(entry=>{
-                console.log(entry.length,"Entry length")
-                console.log(entry.toString(),"Entry content")
-            })    
+        
         })
         console.log(this.individualOldEntries.length,"Old entries length in prepare index method")
-        this.individualOldEntries.forEach(entry=>{
-            console.log(entry.length,"Entry length")
-            console.log(entry.toString(),"Entry content")
-        })
+        
     }
     
     public setStats(fileName: string): void
     {//to do: check order in which filecontene lengths are assigned to this.indexentries. It is possible here that 1 filename could be assigned another's contentlength
-        //if(fileNames.length)
-        //{
-         //   let i=0
-        //fileNames.forEach(fileName=>{
         this.stats = fs.statSync(fileName)
-        //console.log(this.stats,"Stats")
         //return this.stats.size
-        //const fileContentLength = this.utils.writeIntegersToBuffer(this.indexEntries[i].fileContentLength, this.stats.size,32)
-        //i++
-        //})
-        
-        //}
-        //return this.stats.size
-    }//To do: refactor this method
-    public calculateNumberOfIndexEntriesToWriteInIndex(indexEntries: any[]): number
+    }
+    
+    //To do: refactor this method
+    public getNumberOfIndexEntriesToWriteInIndex(indexEntries: any[]): number
     {
         return indexEntries.length
     }
@@ -351,17 +325,30 @@ export class UpdateIndex
         let inputNumberOfEntries = 0
         
         if(fs.existsSync(this._fileName))
-        {
+        {   this._extractOldEntries()
             let indexFileContents = fs.readFileSync(this._fileName)
             currentNumberOfEntries = indexFileContents[11]//to do: read this from buffer of 4 bytes length
-            
-            indexEntries.forEach(indexEntry => {
-                if(!indexFileContents.includes(indexEntry.fileName))
-                {
-                    inputNumberOfEntries++
-            //        this.newFileNames.push(indexEntry.fileName)
-                }
-            });
+            let oldEntriesSet = new Set()
+            this.individualOldEntries.forEach((oldEntry)=>{
+                const oldFilename = this._getFilenameOf(oldEntry)
+                oldEntriesSet.add(oldFilename)
+            })
+            console.log(oldEntriesSet,"Old Entries Set")
+            //const indexEntriesSet = new Set(indexEntries)
+            //indexEntries.forEach(indexEntry => {
+                indexEntries.forEach(indexEntry=>{
+                    console.log(indexEntry.fileName,"Input filename")
+                        if(!oldEntriesSet.has(indexEntry.fileName))
+                        {
+                            inputNumberOfEntries++
+                        }
+                })
+            //     if(!indexFileContents.includes(indexEntry.fileName))
+            //     {
+            //         inputNumberOfEntries++
+            // //        this.newFileNames.push(indexEntry.fileName)
+            //     }
+            //});
             this.numberOfIndexEntriesToWriteInIndexSignature = currentNumberOfEntries + inputNumberOfEntries
         } else {
             this.numberOfIndexEntriesToWriteInIndexSignature = indexEntries.length
@@ -454,20 +441,24 @@ export class UpdateIndex
             this.utils.appendDataToFile(this._fileName, this.modifiedExtensions)
         }
          const sha = this._calculateSha()
-         this.utils.appendDataToFile(this._fileName, sha)
+         let indexFileSha1Signature = Buffer.alloc(20)
+         indexFileSha1Signature.fill(sha,0,20,'hex')
+         this.utils.appendDataToFile(this._fileName, indexFileSha1Signature)
 
     }
     
-    public _calculateSha(): Buffer
+    public _calculateSha(): string
     {
         const fileContent = fs.readFileSync(this._fileName)
-        const shaContent = sha1
-        .createHmac('sha1',"SECRET")//process.env.SECRET_KEY
-        .update(fileContent)
-        .digest('hex')
-        const sha = this.utils.allocateBufferSpace(20)
-        this.utils.fillBuffer(sha, shaContent, 0, 20, "hex")
-        return sha
+        // const shaContent = sha1
+        // .createHmac('sha1',"SECRET")//process.env.SECRET_KEY
+        // .update(fileContent)
+        // .digest('hex')
+        // const sha = this.utils.allocateBufferSpace(20)
+        console.log(sha1.createHash('sha1').update(fileContent).digest('hex'),"indexfile sha1 signature")
+        return sha1.createHash('sha1').update(fileContent).digest('hex')
+        // this.utils.fillBuffer(sha, shaContent, 0, 20, "hex")
+        // return sha
         
     }
 }

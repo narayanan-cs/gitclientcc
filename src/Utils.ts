@@ -1,4 +1,5 @@
 import * as fs from 'fs'
+import {exec} from 'child_process'
 
 export class Utils
 {
@@ -117,4 +118,24 @@ export class Utils
     {
         fs.appendFileSync(fileName, data)
     }
+    
+    public packFiles()
+{
+    const result = function(command: string, cb: Function){
+        const child = exec(command, function(err, stdout, stderr){
+            if(err != null){
+                return cb(new Error(err), null);
+            }else if(typeof(stderr) != "string"){
+                return cb(new Error(stderr), null);
+            }else{
+                return cb(null, stdout);
+            }
+        });
+    
+
+        }
+        return result
+        }
+
+
 }

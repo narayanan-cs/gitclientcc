@@ -24,7 +24,7 @@
   "module": "commonjs",
         "target": "es2017",
        
-    "outDir": "dist",
+    "outDir": "./dist/",
     "noImplicitAny": true,
     "removeComments": true,
     "preserveConstEnums": true,

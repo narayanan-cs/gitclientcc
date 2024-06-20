@@ -46,9 +46,14 @@ public readFileContent(): Buffer
     return fileContent
 }
 
-public createStore(): string
+public createStore(): Buffer
 {
-    return this.getHeader() + this.readFileContent()
+    const header = this.getHeader()
+    const body = this.readFileContent()
+    let store = Buffer.alloc(header.length+body.length)
+    store.write(header)
+    body.copy(store,header.length,0,body.length)
+    return store
 }
 
 public calculateshaOfStore(): string

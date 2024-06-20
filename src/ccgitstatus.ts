@@ -90,12 +90,9 @@ export class Ccgitstatus
              console.log(fileNameLength,"FilenameLength Buffer")
              firstEntryLength = <number>this.utils.readIntegersFromBuffer(fileNameLength,16,0,'BE')
              console.log(firstEntryLength,"First entry fileName length")
-             let spaceForNull = 0
-             while((firstEntryLength + 2 + spaceForNull)%4 != 0)
-             {
-                 spaceForNull++
-             }
-             spaceForNull = spaceForNull?spaceForNull:4
+             
+             let spaceForNull = 8 - (j + 2 + firstEntryLength - i)%8
+
              firstEntry = this.utils.allocateBufferSpace(j+2+firstEntryLength+spaceForNull-i)
              indexFileContents.copy(firstEntry,0,i,j+2+firstEntryLength+spaceForNull)
              this._individualEntries.push(firstEntry)
@@ -111,12 +108,9 @@ export class Ccgitstatus
             console.log(fileNameLength,"FilenameLength Buffer")
              let secondEntryLength = <number>this.utils.readIntegersFromBuffer(fileNameLength,16,0,'BE')
              console.log(secondEntryLength,"Second entry fileName length")
-             spaceForNull = 0
-             while((secondEntryLength + 2 + spaceForNull)%4 != 0)
-             {
-                 spaceForNull++
-             }
-             spaceForNull = spaceForNull?spaceForNull:4
+             
+             spaceForNull = 8 - (l + 2 + secondEntryLength - k)%8
+
              secondEntry = this.utils.allocateBufferSpace(l+2+secondEntryLength+spaceForNull-k)
              indexFileContents.copy(secondEntry,0,k,l+2+secondEntryLength+spaceForNull)
             console.log(secondEntry.toString(),"second Entry content")
@@ -163,6 +157,7 @@ export class Ccgitstatus
         const fileNameLength = this.utils.readIntegersFromBuffer(entry, 16, 60, 'BE')
         const fileName = Buffer.alloc(<number>fileNameLength)
         entry.copy(fileName, 0, 62, 62 + <number>fileNameLength)
+        console.log(fileName.toString(),"filename in _getFilenameOf")
         return fileName.toString()
     }
     
@@ -302,10 +297,10 @@ public createStore(file: string): string
 public printStatusOfFiles()
 {
     this.getFilesStatus()
-    console.log(`Untracked files:`,...this.untrackedFiles)
-    console.log(`Changes to be committed:`,...this.stagedFiles)
-    console.log(`Modified files:`,...this.modifiedFiles)
-    console.log(`Deleted files:`,...this.deletedFiles)
+    this.untrackedFiles.length?console.log(`Untracked files:`,...this.untrackedFiles):""
+    this.stagedFiles.length?console.log(`Changes to be committed:`,...this.stagedFiles):""
+    this.modifiedFiles.length?console.log(`Modified files:`,...this.modifiedFiles):""
+    this.deletedFiles.length?console.log(`Deleted files:`,...this.deletedFiles):""
 }
     
 }
